@@ -127,6 +127,14 @@ module.exports = function(options) {
       log('dest', options.response ? '<response>' : cssPath);
     }
 
+    var send = function(data) {
+      res.writeHead(200, {
+        'Content-Type': 'text/css',
+        'Cache-Control': 'max-age=0'
+      });
+      res.end(data);
+    };
+
     // When render is done, respond to the request accordingly
     var done = function(err, result) {
       var data;
@@ -169,11 +177,7 @@ module.exports = function(options) {
           return next(sassMiddlewareError);
         }
 
-        res.writeHead(200, {
-          'Content-Type': 'text/css',
-          'Cache-Control': 'max-age=0'
-        });
-        res.end(data);
+        send(data);
       }
 
       // If response is falsey, also write to file
@@ -215,14 +219,14 @@ module.exports = function(options) {
           });
         });
       }
-    }
+    };
 
     // Compile to cssPath
     var compile = function() {
       if (debug) { log('read', cssPath); }
 
-      fs.exists(sassPath, function(exists) {
-        if (!exists) {
+      fs.stat(sassPath, function(err, stats) {
+        if (err) {
           return next();
         }
 
@@ -280,11 +284,23 @@ module.exports = function(options) {
               log('modified import %s', path);
             });
           }
-          changed && changed.length ? compile() : next();
+          if (changed && changed.length) {
+            compile();
+          }
+          else {
+            fs.readFile(cssPath, function(err, data) {
+              if (err) {
+                next();
+              }
+              else {
+                send(data);
+              }
+            });
+          }
         });
       });
     });
-  }
+  };
 };
 
 /**
